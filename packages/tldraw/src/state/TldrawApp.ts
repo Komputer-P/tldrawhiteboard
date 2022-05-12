@@ -1335,7 +1335,7 @@ export class TldrawApp extends StateManager<TDSnapshot> {
    * Load a fresh room into the state.
    * @param roomId
    */
-  loadRoom = (roomId: string): this => {
+  loadRoom = (roomId: string, userName: string): this => {
     this.patchState({
       room: {
         id: roomId,
@@ -1343,7 +1343,7 @@ export class TldrawApp extends StateManager<TDSnapshot> {
         users: {
           [uuid]: {
             id: uuid,
-            name: "익명",
+            name: userName,
             color: USER_COLORS[Math.floor(Math.random() * USER_COLORS.length)],
             point: [100, 100],
             selectedIds: [],

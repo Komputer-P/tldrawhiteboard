@@ -23,6 +23,11 @@ function Editor({ roomId }: { roomId: string }) {
 }
 
 export default function YjsTldraw(): JSX.Element {
+  React.useEffect(() => {
+    const userName = prompt("이름 입력해주세요") as string;
+    localStorage.setItem("userName", userName);
+  }, []);
+  
   return (
     <div className="tldraw">
       <Editor roomId={roomID} />

@@ -19,7 +19,9 @@ export function useMultiplayerState(roomId: string) {
 
   const onMount = useCallback(
     (app: TldrawApp) => {
-      app.loadRoom(roomId);
+      const userName = localStorage.getItem("userName")
+
+      app.loadRoom(roomId, userName === null ? "익명" : userName);
       app.pause();
       setApp(app);
     },

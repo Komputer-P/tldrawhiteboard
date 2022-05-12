@@ -20,6 +20,11 @@ import { Multiplayer as MultiplayerWithImages } from './multiplayer-with-images'
 import './styles.css'
 
 export default function App(): JSX.Element {
+  React.useEffect(() => {
+    const userName = prompt("이름 입력해주세요") as string;
+    localStorage.setItem("userName", userName);
+  }, []);
+
   return (
     <main>
       <Routes>
