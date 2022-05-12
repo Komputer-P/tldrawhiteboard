@@ -15,6 +15,7 @@ import Api from './api'
 import FileSystem from './file-system'
 import UIOptions from './ui-options'
 import { Multiplayer } from './multiplayer'
+import  YjsTldraw  from './yjs-tldraw/src/yjs-tldraw'
 import { Multiplayer as MultiplayerWithImages } from './multiplayer-with-images'
 import './styles.css'
 
@@ -53,6 +54,9 @@ export default function App(): JSX.Element {
         <Route path="/multiplayer" element={<Multiplayer />} />
 
         <Route path="/multiplayer-with-images" element={MultiplayerWithImages} />
+
+        <Route path="/yjs-tldraw" element={<YjsTldraw />} />
+
         <Route
           path="/"
           element={
@@ -104,6 +108,9 @@ export default function App(): JSX.Element {
                 </li>
                 <li>
                   <Link to="/multiplayer">Multiplayer</Link>
+                </li>
+                <li>
+                  <Link to="/yjs-tldraw">Yjs-Tldraw</Link>
                 </li>
               </ul>
             </div>

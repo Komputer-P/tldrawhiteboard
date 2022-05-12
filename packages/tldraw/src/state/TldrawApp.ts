@@ -1343,6 +1343,7 @@ export class TldrawApp extends StateManager<TDSnapshot> {
         users: {
           [uuid]: {
             id: uuid,
+            name: "익명",
             color: USER_COLORS[Math.floor(Math.random() * USER_COLORS.length)],
             point: [100, 100],
             selectedIds: [],
