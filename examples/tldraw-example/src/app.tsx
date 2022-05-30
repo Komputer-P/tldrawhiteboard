@@ -16,13 +16,14 @@ import FileSystem from './file-system'
 import UIOptions from './ui-options'
 import { Multiplayer } from './multiplayer'
 import  YjsTldraw  from './yjs-tldraw/src/yjs-tldraw'
+import YorkieTldraw from './yorkie-tldraw/yorkie-tldraw'
 import { Multiplayer as MultiplayerWithImages } from './multiplayer-with-images'
 import './styles.css'
 
 export default function App(): JSX.Element {
   React.useEffect(() => {
-    const userName = prompt("이름 입력해주세요") as string;
-    localStorage.setItem("userName", userName);
+    //const userName = prompt("이름 입력해주세요") as string;
+    //localStorage.setItem("userName", userName);
   }, []);
 
   return (
@@ -61,6 +62,8 @@ export default function App(): JSX.Element {
         <Route path="/multiplayer-with-images" element={MultiplayerWithImages} />
 
         <Route path="/yjs-tldraw" element={<YjsTldraw />} />
+
+        <Route path="/yorkie-tldraw" element={<YorkieTldraw />} />
 
         <Route
           path="/"
@@ -116,6 +119,9 @@ export default function App(): JSX.Element {
                 </li>
                 <li>
                   <Link to="/yjs-tldraw">Yjs-Tldraw</Link>
+                </li>
+                <li>
+                  <Link to="/yorkie-tldraw">Yorkie-Tldraw</Link>
                 </li>
               </ul>
             </div>

@@ -50,6 +50,7 @@ export function useMultiplayerState(roomId: string) {
             yBindings.set(binding.id, binding);
           }
         });
+        console.log(yShapes);
       });
     },
     []
@@ -113,6 +114,7 @@ export function useMultiplayerState(roomId: string) {
     window.addEventListener("beforeunload", handleDisconnect);
 
     function handleChanges() {
+      console.log(Object.fromEntries(yShapes.entries()))
       app?.replacePageContent(
         Object.fromEntries(yShapes.entries()),
         Object.fromEntries(yBindings.entries()),
