@@ -49,7 +49,7 @@ declare class Change {
     /**
      * `execute` executes the operations of this change to the given root.
      */
-    execute(root: JSONRoot): void;
+    execute(root: CRDTRoot): void;
     /**
      * `getAnnotatedString` returns a string containing the meta data of this change.
      */
@@ -66,11 +66,11 @@ declare class ChangeContext {
     private operations;
     private message?;
     private delimiter;
-    constructor(id: ChangeID, root: JSONRoot, message?: string);
+    constructor(id: ChangeID, root: CRDTRoot, message?: string);
     /**
      * `create` creates a new instance of ChangeContext.
      */
-    static create(id: ChangeID, root: JSONRoot, message?: string): ChangeContext;
+    static create(id: ChangeID, root: CRDTRoot, message?: string): ChangeContext;
     /**
      * `push` pushes the given operation to this context.
      */
@@ -78,16 +78,16 @@ declare class ChangeContext {
     /**
      * `registerElement` registers the given element to the root.
      */
-    registerElement(element: JSONElement, parent: JSONElement): void;
+    registerElement(element: Primitive, parent: CRDTContainer): void;
     /**
      * `registerRemovedElement` register removed element for garbage collection.
      */
-    registerRemovedElement(deleted: JSONElement): void;
+    registerRemovedElement(deleted: Primitive): void;
     /**
      * `registerRemovedNodeTextElement` register text element has removed node for
      * garbage collection.
      */
-    registerRemovedNodeTextElement(text: JSONElement): void;
+    registerRemovedNodeTextElement(text: CRDTTextElement): void;
     /**
      * `getChange` creates a new instance of Change in this context.
      */
@@ -305,7 +305,7 @@ export declare class Client<M = Indexable> implements Observable<ClientEvent<M>>
      * `attach` attaches the given document to this client. It tells the server that
      * this client will synchronize the given document.
      */
-    attach(doc: DocumentReplica<unknown>, isManualSync?: boolean): Promise<DocumentReplica<unknown>>;
+    attach(doc: Observable<unknown>, isManualSync?: boolean): Promise<Observable<unknown>>;
     /**
      * `detach` detaches the given document from this client. It tells the
      * server that this client will no longer synchronize the given document.
@@ -314,13 +314,13 @@ export declare class Client<M = Indexable> implements Observable<ClientEvent<M>>
      * the changes should be applied to other replicas before GC time. For this,
      * if the document is no longer used by this client, it should be detached.
      */
-    detach(doc: DocumentReplica<unknown>): Promise<DocumentReplica<unknown>>;
+    detach(doc: Observable<unknown>): Promise<Observable<unknown>>;
     /**
      * `sync` pushes local changes of the attached documents to the server and
      * receives changes of the remote replica from the server then apply them to
      * local documents.
      */
-    sync(): Promise<Array<DocumentReplica<unknown>>>;
+    sync(): Promise<Array<Observable<unknown>>>;
     /**
      * `updatePresence` updates the presence of this client.
      */
@@ -424,7 +424,7 @@ declare type Comparator<K> = (keyA: K, keyB: K) => number;
  */
 export declare type CompleteFn = () => void;
 /**
- * `Counter` is the counter.
+ * `Counter` is a custom data type that is used to counter.
  */
 export declare class Counter {
     private value;
@@ -435,7 +435,11 @@ export declare class Counter {
      * `initialize` initialize this text with context and internal text.
      * @internal
      */
-    initialize(context: ChangeContext, counter: JSONElement): void;
+    initialize(context: ChangeContext, counter: CRDTCounter): void;
+    /**
+     * `getID` returns the ID of this text.
+     */
+    getID(): TimeTicket;
     /**
      * `getValue` returns the value of this counter;
      * @internal
@@ -447,18 +451,39 @@ export declare class Counter {
     increase(v: number | Long_2): Counter;
 }
 /**
+ * @internal
+ */
+declare enum CounterType {
+    IntegerCnt = 0,
+    LongCnt = 1,
+    DoubleCnt = 2
+}
+declare type CounterValue = number | Long_2;
+/**
+ *
+ * `CRDTContainer` represents CRDTArray or CRDtObject.
+ * @internal
+ */
+declare abstract class CRDTContainer {
+    constructor(createdAt: TimeTicket);
+    abstract keyOf(createdAt: TimeTicket): string | undefined;
+    abstract purge(element: Primitive): void;
+    abstract delete(createdAt: TimeTicket, executedAt: TimeTicket): Primitive;
+    abstract getDescendants(callback: (elem: Primitive, parent: CRDTContainer) => boolean): void;
+}
+/**
  * `CounterInternal` represents changeable number data type.
  *
  * @internal
  */
-declare class CounterInternal extends JSONElement {
+declare class CRDTCounter {
     private valueType?;
     private value;
     constructor(value: CounterValue, createdAt: TimeTicket);
     /**
      * `of` creates a new instance of Counter.
      */
-    static of(value: CounterValue, createdAt: TimeTicket): JSONElement;
+    static of(value: CounterValue, createdAt: TimeTicket): CRDTCounter;
     /**
      * `valueFromBytes` parses the given bytes into value.
      */
@@ -474,7 +499,7 @@ declare class CounterInternal extends JSONElement {
     /**
      * `deepcopy` copies itself deeply.
      */
-    deepcopy(): JSONElement;
+    deepcopy(): CRDTCounter;
     /**
      * `getType` returns the type of the value.
      */
@@ -506,20 +531,382 @@ declare class CounterInternal extends JSONElement {
     /**
      * `increase` increases numeric data.
      */
-    increase(v: JSONElement): JSONElement;
+    increase(v: Primitive): CRDTCounter;
 }
 /**
+ * `CRDTElement` represents element type containing logical clock.
+ *
  * @internal
  */
-declare enum CounterType {
-    IntegerCnt = 0,
-    LongCnt = 1,
-    DoubleCnt = 2
+declare abstract class CRDTElement {
+    private createdAt;
+    private movedAt?;
+    private removedAt?;
+    constructor(createdAt: TimeTicket);
+    /**
+     * `getCreatedAt` returns the creation time of this element.
+     */
+    getCreatedAt(): TimeTicket;
+    /**
+     * `getID` returns the creation time of this element.
+     */
+    getID(): TimeTicket;
+    /**
+     * `getMovedAt` returns the move time of this element.
+     */
+    getMovedAt(): TimeTicket | undefined;
+    /**
+     * `getRemovedAt` returns the removal time of this element.
+     */
+    getRemovedAt(): TimeTicket | undefined;
+    /**
+     * `setMovedAt` sets the move time of this element.
+     */
+    setMovedAt(movedAt?: TimeTicket): boolean;
+    /**
+     * `setRemovedAt` sets the remove time of this element.
+     */
+    setRemovedAt(removedAt?: TimeTicket): void;
+    /**
+     * `remove` removes this element.
+     */
+    remove(removedAt?: TimeTicket): boolean;
+    /**
+     * `isRemoved` check if this element was removed.
+     */
+    isRemoved(): boolean;
+    abstract toJSON(): string;
+    abstract toSortedJSON(): string;
+    abstract deepcopy(): Primitive;
 }
-declare type CounterValue = number | Long_2;
 /**
- * `DocEvent` is an event that occurs in `DocumentReplica`. It can be delivered
- * using `DocumentReplica.subscribe()`.
+ * `CRDTObject` represents object datatype, but unlike regular JSON, it has time
+ * tickets which is created by logical clock.
+ *
+ * @internal
+ */
+declare class CRDTObject {
+    private memberNodes;
+    private constructor();
+    /**
+     * `create` creates a new instance of Object.
+     */
+    static create(createdAt: TimeTicket): CRDTObject;
+    /**
+     * `keyOf` returns a key of RHTPQMap based on the given creation time.
+     */
+    keyOf(createdAt: TimeTicket): string | undefined;
+    /**
+     * `purge` physically purges child element.
+     */
+    purge(value: Primitive): void;
+    /**
+     * `set` sets the given element of the given key.
+     */
+    set(key: string, value: Primitive): Primitive | undefined;
+    /**
+     * `delete` deletes the element of the given key.
+     */
+    delete(createdAt: TimeTicket, executedAt: TimeTicket): Primitive;
+    /**
+     * `deleteByKey` deletes the element of the given key and execution time.
+     */
+    deleteByKey(key: string, executedAt: TimeTicket): Primitive | undefined;
+    /**
+     * `get` returns the value of the given key.
+     */
+    get(key: string): Primitive | undefined;
+    /**
+     * `has` returns whether the element exists of the given key or not.
+     */
+    has(key: string): boolean;
+    /**
+     * `toJSON` returns the JSON encoding of this object.
+     */
+    toJSON(): string;
+    /**
+     * `toJS` return the javascript object of this object.
+     */
+    toJS(): any;
+    /**
+     * `getKeys` returns array of this object.
+     */
+    getKeys(): Array<string>;
+    /**
+     * `toSortedJSON` returns the sorted JSON encoding of this object.
+     */
+    toSortedJSON(): string;
+    /**
+     * `getRHT` RHTNodes returns the RHTPQMap nodes.
+     */
+    getRHT(): RHTPQMap;
+    /**
+     * `deepcopy` copies itself deeply.
+     */
+    deepcopy(): CRDTObject;
+    /**
+     * `getDescendants` returns the descendants of this object by traversing.
+     */
+    getDescendants(callback: (elem: Primitive, parent: CRDTContainer) => boolean): void;
+    /**
+     * eslint-disable-next-line jsdoc/require-jsdoc
+     * @internal
+     */
+    [Symbol.iterator](): IterableIterator<[string, Primitive]>;
+}
+/**
+ *  `CRDTRichText` is a custom CRDT data type to represent the contents of text editors.
+ *
+ * @internal
+ */
+declare class CRDTRichText {
+    private onChangesHandler?;
+    private rgaTreeSplit;
+    private selectionMap;
+    private remoteChangeLock;
+    constructor(rgaTreeSplit: RGATreeSplit<RichTextValue>, createdAt: TimeTicket);
+    /**
+     * `create` a instance of RichText.
+     */
+    static create(rgaTreeSplit: RGATreeSplit<RichTextValue>, createdAt: TimeTicket): CRDTRichText;
+    /**
+     * `edit` edits the given range with the given content and attributes.
+     *
+     * @internal
+     */
+    edit(range: RGATreeSplitNodeRange, content: string, editedAt: TimeTicket, attributes?: Record<string, string>, latestCreatedAtMapByActor?: Map<string, TimeTicket>): Map<string, TimeTicket>;
+    /**
+     * `setStyle` applies the style of the given range.
+     * 01. split nodes with from and to
+     * 02. style nodes between from and to
+     *
+     * @param range - range of RGATreeSplitNode
+     * @param attributes - style attributes
+     * @param editedAt - edited time
+     * @internal
+     */
+    setStyle(range: RGATreeSplitNodeRange, attributes: Record<string, string>, editedAt: TimeTicket): void;
+    /**
+     * `select` stores that the given range has been selected.
+     *
+     * @internal
+     */
+    select(range: RGATreeSplitNodeRange, updatedAt: TimeTicket): void;
+    /**
+     * `hasRemoteChangeLock` checks whether remoteChangeLock has.
+     */
+    hasRemoteChangeLock(): boolean;
+    /**
+     * `onChanges` registers a handler of onChanges event.
+     */
+    onChanges(handler: (changes: Array<TextChange>) => void): void;
+    /**
+     * `createRange` returns pair of RGATreeSplitNodePos of the given integer offsets.
+     */
+    createRange(fromIdx: number, toIdx: number): RGATreeSplitNodeRange;
+    /**
+     * `toJSON` returns the JSON encoding of this rich text.
+     */
+    toJSON(): string;
+    /**
+     * `toSortedJSON` returns the sorted JSON encoding of this rich text.
+     */
+    toSortedJSON(): string;
+    /**
+     * `values` returns value array of this RichTextVal.
+     */
+    values(): Array<RichTextVal>;
+    /**
+     * `getRGATreeSplit` returns rgaTreeSplit.
+     *
+     * @internal
+     */
+    getRGATreeSplit(): RGATreeSplit<RichTextValue>;
+    /**
+     * `getAnnotatedString` returns a String containing the meta data of this value
+     * for debugging purpose.
+     */
+    getAnnotatedString(): string;
+    /**
+     * `getRemovedNodesLen` returns length of removed nodes
+     */
+    getRemovedNodesLen(): number;
+    /**
+     * `purgeTextNodesWithGarbage` physically purges nodes that have been removed.
+     *
+     * @internal
+     */
+    purgeTextNodesWithGarbage(ticket: TimeTicket): number;
+    /**
+     * `deepcopy` copies itself deeply.
+     */
+    deepcopy(): CRDTRichText;
+    private selectPriv;
+}
+/**
+ * `CRDTRoot` is a structure represents the root. It has a hash table of
+ * all elements to find a specific element when applying remote changes
+ * received from server.
+ *
+ * Every element has a unique time ticket at creation, which allows us to find
+ * a particular element.
+ */
+declare class CRDTRoot {
+    private rootObject;
+    private elementPairMapByCreatedAt;
+    private removedElementSetByCreatedAt;
+    private textWithGarbageSetByCreatedAt;
+    constructor(rootObject: CRDTObject);
+    /**
+     * `create` creates a new instance of Root.
+     */
+    static create(): CRDTRoot;
+    /**
+     * `findByCreatedAt` returns the element of given creation time.
+     */
+    findByCreatedAt(createdAt: TimeTicket): Primitive | undefined;
+    /**
+     * `createPath` creates path of the given element.
+     */
+    createPath(createdAt: TimeTicket): string | undefined;
+    /**
+     * `registerElement` registers the given element to hash table.
+     */
+    registerElement(element: Primitive, parent: CRDTContainer): void;
+    /**
+     * `deregisterElement` deregister the given element from hash table.
+     */
+    deregisterElement(element: Primitive): void;
+    /**
+     * `registerRemovedElement` registers the given element to hash table.
+     */
+    registerRemovedElement(element: Primitive): void;
+    /**
+     * `registerTextWithGarbage` registers the given text to hash set.
+     */
+    registerTextWithGarbage(text: CRDTTextElement): void;
+    /**
+     * `getElementMapSize` returns the size of element map.
+     */
+    getElementMapSize(): number;
+    /**
+     * `getRemovedElementSetSize()` returns the size of removed element set.
+     */
+    getRemovedElementSetSize(): number;
+    /**
+     * `getObject` returns root object.
+     */
+    getObject(): CRDTObject;
+    /**
+     * `getGarbageLen` returns length of nodes which should garbage collection task
+     */
+    getGarbageLen(): number;
+    /**
+     * `deepcopy` copies itself deeply.
+     */
+    deepcopy(): CRDTRoot;
+    /**
+     * `garbageCollect` purges elements that were removed before the given time.
+     */
+    garbageCollect(ticket: TimeTicket): number;
+    private garbageCollectInternal;
+    /**
+     * `toJSON` returns the JSON encoding of this root object.
+     */
+    toJSON(): string;
+    /**
+     * `toSortedJSON` returns the sorted JSON encoding of this root object.
+     */
+    toSortedJSON(): string;
+}
+/**
+ * `CRDTText` represents plain text element
+ * Text is an extended data type for the contents of a text editor
+ *
+ * @internal
+ */
+declare class CRDTText {
+    private onChangesHandler?;
+    private rgaTreeSplit;
+    private selectionMap;
+    private remoteChangeLock;
+    private constructor();
+    /**
+     * `create` creates a new instance of `CRDTText`.
+     */
+    static create(rgaTreeSplit: RGATreeSplit<string>, createdAt: TimeTicket): CRDTText;
+    /**
+     * `edit` edits the given range with the given content.
+     *
+     * @internal
+     */
+    edit(range: RGATreeSplitNodeRange, content: string, editedAt: TimeTicket, latestCreatedAtMapByActor?: Map<string, TimeTicket>): Map<string, TimeTicket>;
+    /**
+     * `select` updates selection info of the given selection range.
+     *
+     * @internal
+     */
+    select(range: RGATreeSplitNodeRange, updatedAt: TimeTicket): void;
+    /**
+     * `hasRemoteChangeLock` checks whether remoteChangeLock has.
+     */
+    hasRemoteChangeLock(): boolean;
+    /**
+     * `onChanges` registers a handler of onChanges event.
+     */
+    onChanges(handler: (changes: Array<TextChange>) => void): void;
+    /**
+     * `createRange` returns pair of RGATreeSplitNodePos of the given integer offsets.
+     */
+    createRange(fromIdx: number, toIdx: number): RGATreeSplitNodeRange;
+    /**
+     * `toJSON` returns the JSON encoding of this text.
+     */
+    toJSON(): string;
+    /**
+     * `toSortedJSON` returns the sorted JSON encoding of this text.
+     */
+    toSortedJSON(): string;
+    /**
+     * `toString` returns the string representation of this text.
+     */
+    toString(): string;
+    /**
+     * `getRGATreeSplit` returns the rgaTreeSplit.
+     *
+     * @internal
+     */
+    getRGATreeSplit(): RGATreeSplit<string>;
+    /**
+     * `getAnnotatedString` returns a String containing the meta data of the text.
+     */
+    getAnnotatedString(): string;
+    /**
+     * `getRemovedNodesLen` returns length of removed nodes.
+     */
+    getRemovedNodesLen(): number;
+    /**
+     * `purgeTextNodesWithGarbage` physically purges nodes that have been removed.
+     *
+     * @internal
+     */
+    purgeTextNodesWithGarbage(ticket: TimeTicket): number;
+    /**
+     * `deepcopy` copies itself deeply.
+     */
+    deepcopy(): CRDTText;
+    private selectPriv;
+}
+/**
+ * `CRDTTextElement` represents CRDTText or CRDTRichText.
+ */
+declare abstract class CRDTTextElement {
+    abstract getRemovedNodesLen(): number;
+    abstract purgeTextNodesWithGarbage(ticket: TimeTicket): number;
+}
+/**
+ * `DocEvent` is an event that occurs in `Document`. It can be delivered
+ * using `Document.subscribe()`.
  *
  * @public
  */
@@ -543,12 +930,12 @@ export declare enum DocEventType {
     RemoteChange = "remote-change"
 }
 /**
- * `DocumentReplica` is a CRDT-based data type. We can representing the model
+ * `Document` is a CRDT-based data type. We can representing the model
  * of the application. And we can edit it even while offline.
  *
  * @public
  */
-export declare class DocumentReplica<T = Indexable> implements Observable<DocEvent> {
+declare class Document_2<T> implements Observable<DocEvent> {
     private key;
     private root;
     private clone?;
@@ -561,7 +948,7 @@ export declare class DocumentReplica<T = Indexable> implements Observable<DocEve
     /**
      * `create` creates a new instance of Document.
      */
-    static create<T>(key: string): DocumentReplica<T>;
+    static create<T>(key: string): Observable<T>;
     /**
      * `update` executes the given updater to update this document.
      */
@@ -623,7 +1010,7 @@ export declare class DocumentReplica<T = Indexable> implements Observable<DocEve
      *
      * @internal
      */
-    getClone(): ObjectInternal | undefined;
+    getClone(): CRDTObject | undefined;
     /**
      * `getRoot` returns a new proxy of cloned root.
      */
@@ -639,7 +1026,7 @@ export declare class DocumentReplica<T = Indexable> implements Observable<DocEve
      *
      * @internal
      */
-    getRootObject(): ObjectInternal;
+    getRootObject(): CRDTObject;
     /**
      * `getGarbageLen` returns the length of elements should be purged.
      *
@@ -658,6 +1045,7 @@ export declare class DocumentReplica<T = Indexable> implements Observable<DocEve
     private applyChanges;
     private createPaths;
 }
+export { Document_2 as Document };
 /**
  * `DocumentsChangedEvent` is an event that occurs when documents attached to
  * the client changes.
@@ -735,7 +1123,7 @@ export declare type Indexable = Record<string, any>;
  * `JSONArray` represents JSON array, but unlike regular JSON, it has time
  * tickets created by a logical clock to resolve conflicts.
  */
-export declare type JSONArray<T = unknown> = {
+export declare type JSONArray<T> = {
     /**
      * `getID` returns the ID, `TimeTicket` of this Object.
      */
@@ -743,27 +1131,27 @@ export declare type JSONArray<T = unknown> = {
     /**
      * `getElementByID` returns the element for the given ID.
      */
-    getElementByID?(createdAt: TimeTicket): JSONElement & T;
+    getElementByID?(createdAt: TimeTicket): WrappedElement<T>;
     /**
      * `getElementByIndex` returns the element for the given index.
      */
-    getElementByIndex?(index: number): JSONElement & T;
+    getElementByIndex?(index: number): WrappedElement<T>;
     /**
      * `getLast` returns the last element of this array.
      */
-    getLast?(): JSONElement;
+    getLast?(): WrappedElement<T>;
     /**
      * `deleteByID` deletes the element of the given ID.
      */
-    deleteByID?(createdAt: TimeTicket): JSONElement & T;
+    deleteByID?(createdAt: TimeTicket): WrappedElement<T>;
     /**
      * `insertBefore` inserts a value before the given next element.
      */
-    insertBefore?(nextID: TimeTicket, value: any): JSONElement & T;
+    insertBefore?(nextID: TimeTicket, value: any): WrappedElement<T>;
     /**
      * `insertAfter` inserts a value after the given previous element.
      */
-    insertAfter?(prevID: TimeTicket, value: any): JSONElement & T;
+    insertAfter?(prevID: TimeTicket, value: any): WrappedElement<T>;
     /**
      * `moveBefore` moves the element before the given next element.
      */
@@ -782,68 +1170,14 @@ export declare type JSONArray<T = unknown> = {
     moveLast?(id: TimeTicket): void;
 } & Array<T>;
 /**
- *
- * `JSONContainer` represents Array or Object.
- * @internal
+ * `JSONElement` represents the type the user is using.
  */
-declare abstract class JSONContainer extends JSONElement {
-    constructor(createdAt: TimeTicket);
-    abstract keyOf(createdAt: TimeTicket): string | undefined;
-    abstract purge(element: JSONElement): void;
-    abstract delete(createdAt: TimeTicket, executedAt: TimeTicket): JSONElement;
-    abstract getDescendants(callback: (elem: JSONElement, parent: JSONElement) => boolean): void;
-}
-/**
- * `JSONElement` represents JSON element including logical clock.
- *
- * @internal
- */
-export declare abstract class JSONElement {
-    private createdAt;
-    private movedAt?;
-    private removedAt?;
-    constructor(createdAt: TimeTicket);
-    /**
-     * `getCreatedAt` returns the creation time of this element.
-     */
-    getCreatedAt(): TimeTicket;
-    /**
-     * `getID` returns the creation time of this element.
-     */
-    getID(): TimeTicket;
-    /**
-     * `getMovedAt` returns the move time of this element.
-     */
-    getMovedAt(): TimeTicket | undefined;
-    /**
-     * `getRemovedAt` returns the removal time of this element.
-     */
-    getRemovedAt(): TimeTicket | undefined;
-    /**
-     * `setMovedAt` sets the move time of this element.
-     */
-    setMovedAt(movedAt?: TimeTicket): boolean;
-    /**
-     * `setRemovedAt` sets the remove time of this element.
-     */
-    setRemovedAt(removedAt?: TimeTicket): void;
-    /**
-     * `remove` removes this element.
-     */
-    remove(removedAt?: TimeTicket): boolean;
-    /**
-     * `isRemoved` check if this element was removed.
-     */
-    isRemoved(): boolean;
-    abstract toJSON(): string;
-    abstract toSortedJSON(): string;
-    abstract deepcopy(): JSONElement;
-}
+export declare type JSONElement<T = unknown> = PrimitiveValue | JSONObject<T> | JSONArray<T> | Text_2 | RichText | Counter;
 /**
  * `JSONObject` represents a JSON object, but unlike regular JSON, it has time
  * tickets created by a logical clock to resolve conflicts.
  */
-export declare type JSONObject<T extends Indexable> = {
+export declare type JSONObject<T> = {
     /**
      * `getID` returns the ID(time ticket) of this Object.
      */
@@ -853,139 +1187,6 @@ export declare type JSONObject<T extends Indexable> = {
      */
     toJSON?(): string;
 } & T;
-/**
- * `JSONPrimitive` represents JSON primitive data type including logical lock.
- * This is immutable.
- */
-declare class JSONPrimitive extends JSONElement {
-    private valueType;
-    private value;
-    constructor(value: PrimitiveValue, createdAt: TimeTicket);
-    /**
-     * `of` creates a new instance of Primitive.
-     */
-    static of(value: PrimitiveValue, createdAt: TimeTicket): JSONElement;
-    /**
-     * `valueFromBytes` parses the given bytes into value.
-     */
-    static valueFromBytes(primitiveType: PrimitiveType, bytes: Uint8Array): PrimitiveValue;
-    /**
-     * `toJSON` returns the JSON encoding of the value.
-     */
-    toJSON(): string;
-    /**
-     * `toSortedJSON` returns the sorted JSON encoding of the value.
-     */
-    toSortedJSON(): string;
-    /**
-     * `deepcopy` copies itself deeply.
-     */
-    deepcopy(): JSONElement;
-    /**
-     * `getType` returns the type of the value.
-     */
-    getType(): PrimitiveType;
-    /**
-     * `getPrimitiveType` returns the primitive type of the value.
-     */
-    static getPrimitiveType(value: unknown): PrimitiveType | undefined;
-    /**
-     * `isSupport` check if the given value is supported type.
-     */
-    static isSupport(value: unknown): boolean;
-    /**
-     * `isInteger` checks if the given number is integer.
-     */
-    static isInteger(num: number): boolean;
-    /**
-     * `isNumericType` checks numeric type by JSONPrimitive
-     */
-    isNumericType(): boolean;
-    /**
-     * `getValue` returns the value of Primitive.
-     */
-    getValue(): PrimitiveValue;
-    /**
-     * `toBytes` creates an array representing the value.
-     */
-    toBytes(): Uint8Array;
-}
-/**
- * `JSONRoot` is a structure represents the root of JSON. It has a hash table of
- * all JSON elements to find a specific element when applying remote changes
- * received from server.
- *
- * Every element has a unique time ticket at creation, which allows us to find
- * a particular element.
- */
-declare class JSONRoot {
-    private rootObject;
-    private elementPairMapByCreatedAt;
-    private removedElementSetByCreatedAt;
-    private textWithGarbageSetByCreatedAt;
-    constructor(rootObject: ObjectInternal);
-    /**
-     * `create` creates a new instance of Root.
-     */
-    static create(): JSONRoot;
-    /**
-     * `findByCreatedAt` returns the element of given creation time.
-     */
-    findByCreatedAt(createdAt: TimeTicket): JSONElement | undefined;
-    /**
-     * `createPath` creates path of the given element.
-     */
-    createPath(createdAt: TimeTicket): string | undefined;
-    /**
-     * `registerElement` registers the given element to hash table.
-     */
-    registerElement(element: JSONElement, parent: JSONElement): void;
-    /**
-     * `deregisterElement` deregister the given element from hash table.
-     */
-    deregisterElement(element: JSONElement): void;
-    /**
-     * `registerRemovedElement` registers the given element to hash table.
-     */
-    registerRemovedElement(element: JSONElement): void;
-    /**
-     * `registerTextWithGarbage` registers the given text to hash set.
-     */
-    registerTextWithGarbage(text: JSONElement): void;
-    /**
-     * `getElementMapSize` returns the size of element map.
-     */
-    getElementMapSize(): number;
-    /**
-     * `getRemovedElementSetSize()` returns the size of removed element set.
-     */
-    getRemovedElementSetSize(): number;
-    /**
-     * `getObject` returns root object.
-     */
-    getObject(): ObjectInternal;
-    /**
-     * `getGarbageLen` returns length of nodes which should garbage collection task
-     */
-    getGarbageLen(): number;
-    /**
-     * `deepcopy` copies itself deeply.
-     */
-    deepcopy(): JSONRoot;
-    /**
-     * `garbageCollect` purges elements that were removed before the given time.
-     */
-    garbageCollect(ticket: TimeTicket): number;
-    private garbageCollectInternal;
-    /**
-     * `toJSON` returns the JSON encoding of this root object.
-     */
-    toJSON(): string;
-    /**
-     * `toSortedJSON` returns the sorted JSON encoding of this root object.
-     */
-    toSortedJSON(): string;
-}
 /**
  * `LocalChangeEvent` is an event that occurs when the document is changed
  * by local changes.
@@ -1006,81 +1207,6 @@ export declare interface LocalChangeEvent {
  * @internal
  */
 export declare type NextFn<T> = (value: T) => void;
-/**
- * `ObjectInternal` represents a JSON object, but unlike regular JSON, it has time
- * tickets which is created by logical clock.
- *
- * @internal
- */
-declare class ObjectInternal {
-    private memberNodes;
-    private constructor();
-    /**
-     * `create` creates a new instance of Object.
-     */
-    static create(createdAt: TimeTicket): ObjectInternal;
-    /**
-     * `keyOf` returns a key of RHTPQMap based on the given creation time.
-     */
-    keyOf(createdAt: TimeTicket): string | undefined;
-    /**
-     * `purge` physically purges child element.
-     */
-    purge(value: JSONElement): void;
-    /**
-     * `set` sets the given element of the given key.
-     */
-    set(key: string, value: JSONElement): JSONElement | undefined;
-    /**
-     * `delete` deletes the element of the given key.
-     */
-    delete(createdAt: TimeTicket, executedAt: TimeTicket): JSONElement;
-    /**
-     * `deleteByKey` deletes the element of the given key and execution time.
-     */
-    deleteByKey(key: string, executedAt: TimeTicket): JSONElement | undefined;
-    /**
-     * `get` returns the value of the given key.
-     */
-    get(key: string): JSONElement | undefined;
-    /**
-     * `has` returns whether the element exists of the given key or not.
-     */
-    has(key: string): boolean;
-    /**
-     * `toJSON` returns the JSON encoding of this object.
-     */
-    toJSON(): string;
-    /**
-     * `toJS` return the javascript object of this object.
-     */
-    toJS(): any;
-    /**
-     * `getKeys` returns array of this object.
-     */
-    getKeys(): Array<string>;
-    /**
-     * `toSortedJSON` returns the sorted JSON encoding of this object.
-     */
-    toSortedJSON(): string;
-    /**
-     * `getRHT` RHTNodes returns the RHTPQMap nodes.
-     */
-    getRHT(): RHTPQMap;
-    /**
-     * `deepcopy` copies itself deeply.
-     */
-    deepcopy(): ObjectInternal;
-    /**
-     * `getDescendants` returns the descendants of this object by traversing.
-     */
-    getDescendants(callback: (elem: JSONElement, parent: JSONElement) => boolean): void;
-    /**
-     * eslint-disable-next-line jsdoc/require-jsdoc
-     * @internal
-     */
-    [Symbol.iterator](): IterableIterator<[string, JSONElement]>;
-}
 /**
  * @internal
  */
@@ -1160,7 +1286,7 @@ declare abstract class Operation {
     /**
      * `execute` executes this operation on the given document(`root`).
      */
-    abstract execute(root: JSONRoot): void;
+    abstract execute(root: CRDTRoot): void;
 }
 /**
  * `PeersChangedEvent` is an event that occurs when the states of another peers
@@ -1179,122 +1305,6 @@ export declare interface PeersChangedEvent<M> {
     value: Record<string, Record<string, M>>;
 }
 /**
- * `PlainText` represents plain text element for representing contents of a text editor.
- */
-export declare class PlainText {
-    private context?;
-    private text?;
-    constructor(context?: ChangeContext, text?: PlainTextInternal);
-    /**
-     * `initialize` initialize this text with context and internal text.
-     * @internal
-     */
-    initialize(context: ChangeContext, text: PlainTextInternal): void;
-    /**
-     * `edit` edits this text with the given content.
-     */
-    edit(fromIdx: number, toIdx: number, content: string): boolean;
-    /**
-     * `select` selects the given range.
-     */
-    select(fromIdx: number, toIdx: number): boolean;
-    /**
-     * `getAnnotatedString` returns a String containing the meta data of the node
-     * for debugging purpose.
-     */
-    getAnnotatedString(): string;
-    /**
-     * `toString` returns the string representation of this text.
-     */
-    toString(): string;
-    /**
-     * `createRange` returns pair of RGATreeSplitNodePos of the given integer offsets.
-     */
-    createRange(fromIdx: number, toIdx: number): RGATreeSplitNodeRange;
-    /**
-     * `onChanges` registers a handler of onChanges event.
-     */
-    onChanges(handler: (changes: Array<TextChange>) => void): void;
-}
-/**
- * `PlainTextInternal` represents plain text element
- * Text is an extended data type for the contents of a text editor
- *
- * @internal
- */
-declare class PlainTextInternal {
-    private onChangesHandler?;
-    private rgaTreeSplit;
-    private selectionMap;
-    private remoteChangeLock;
-    private constructor();
-    /**
-     * `create` creates a new instance of `PlainText`.
-     */
-    static create(rgaTreeSplit: RGATreeSplit<string>, createdAt: TimeTicket): PlainTextInternal;
-    /**
-     * `editInternal` edits the given range with the given content.
-     *
-     * @internal
-     */
-    editInternal(range: RGATreeSplitNodeRange, content: string, editedAt: TimeTicket, latestCreatedAtMapByActor?: Map<string, TimeTicket>): Map<string, TimeTicket>;
-    /**
-     * `selectInternal` updates selection info of the given selection range.
-     *
-     * @internal
-     */
-    selectInternal(range: RGATreeSplitNodeRange, updatedAt: TimeTicket): void;
-    /**
-     * `hasRemoteChangeLock` checks whether remoteChangeLock has.
-     */
-    hasRemoteChangeLock(): boolean;
-    /**
-     * `onChanges` registers a handler of onChanges event.
-     */
-    onChanges(handler: (changes: Array<TextChange>) => void): void;
-    /**
-     * `createRange` returns pair of RGATreeSplitNodePos of the given integer offsets.
-     */
-    createRange(fromIdx: number, toIdx: number): RGATreeSplitNodeRange;
-    /**
-     * `toJSON` returns the JSON encoding of this text.
-     */
-    toJSON(): string;
-    /**
-     * `toSortedJSON` returns the sorted JSON encoding of this text.
-     */
-    toSortedJSON(): string;
-    /**
-     * `toString` returns the string representation of this text.
-     */
-    toString(): string;
-    /**
-     * `getRGATreeSplit` returns the rgaTreeSplit.
-     *
-     * @internal
-     */
-    getRGATreeSplit(): RGATreeSplit<string>;
-    /**
-     * `getAnnotatedString` returns a String containing the meta data of the text.
-     */
-    getAnnotatedString(): string;
-    /**
-     * `getRemovedNodesLen` returns length of removed nodes.
-     */
-    getRemovedNodesLen(): number;
-    /**
-     * `purgeTextNodesWithGarbage` physically purges nodes that have been removed.
-     *
-     * @internal
-     */
-    purgeTextNodesWithGarbage(ticket: TimeTicket): number;
-    /**
-     * `deepcopy` copies itself deeply.
-     */
-    deepcopy(): PlainTextInternal;
-    private selectPriv;
-}
-/**
  * `PresenceInfo` is presence information of this client.
  *
  * @public
@@ -1303,6 +1313,63 @@ export declare type PresenceInfo<M> = {
     clock: number;
     data: M;
 };
+/**
+ * `Primitive` represents primitive data type including logical clock.
+ * This is immutable.
+ */
+export declare class Primitive {
+    private valueType;
+    private value;
+    constructor(value: PrimitiveValue, createdAt: TimeTicket);
+    /**
+     * `of` creates a new instance of Primitive.
+     */
+    static of(value: PrimitiveValue, createdAt: TimeTicket): Primitive;
+    /**
+     * `valueFromBytes` parses the given bytes into value.
+     */
+    static valueFromBytes(primitiveType: PrimitiveType, bytes: Uint8Array): PrimitiveValue;
+    /**
+     * `toJSON` returns the JSON encoding of the value.
+     */
+    toJSON(): string;
+    /**
+     * `toSortedJSON` returns the sorted JSON encoding of the value.
+     */
+    toSortedJSON(): string;
+    /**
+     * `deepcopy` copies itself deeply.
+     */
+    deepcopy(): Primitive;
+    /**
+     * `getType` returns the type of the value.
+     */
+    getType(): PrimitiveType;
+    /**
+     * `getPrimitiveType` returns the primitive type of the value.
+     */
+    static getPrimitiveType(value: unknown): PrimitiveType | undefined;
+    /**
+     * `isSupport` check if the given value is supported type.
+     */
+    static isSupport(value: unknown): boolean;
+    /**
+     * `isInteger` checks if the given number is integer.
+     */
+    static isInteger(num: number): boolean;
+    /**
+     * `isNumericType` checks numeric type by JSONPrimitive
+     */
+    isNumericType(): boolean;
+    /**
+     * `getValue` returns the value of Primitive.
+     */
+    getValue(): PrimitiveValue;
+    /**
+     * `toBytes` creates an array representing the value.
+     */
+    toBytes(): Uint8Array;
+}
 declare enum PrimitiveType {
     Null = 0,
     Boolean = 1,
@@ -1313,7 +1380,7 @@ declare enum PrimitiveType {
     Bytes = 6,
     Date = 7
 }
-declare type PrimitiveValue = null | boolean | number | Long_2 | string | Uint8Array | Date;
+export declare type PrimitiveValue = null | boolean | number | Long_2 | string | Uint8Array | Date;
 /**
  * `RemoteChangeEvent` is an event that occurs when the document is changed
  * by remote changes.
@@ -1632,15 +1699,15 @@ declare class RHTPQMap {
     /**
      * `set` sets the value of the given key.
      */
-    set(key: string, value: JSONElement): JSONElement | undefined;
+    set(key: string, value: Primitive): Primitive | undefined;
     /**
      * `setInternal` sets the value of the given key.
      */
-    setInternal(key: string, value: JSONElement): void;
+    setInternal(key: string, value: Primitive): void;
     /**
      * `delete` deletes deletes the Element of the given key.
      */
-    delete(createdAt: TimeTicket, executedAt: TimeTicket): JSONElement;
+    delete(createdAt: TimeTicket, executedAt: TimeTicket): Primitive;
     /**
      * `keyOf` returns a key of node based on creation time
      */
@@ -1648,11 +1715,11 @@ declare class RHTPQMap {
     /**
      * `purge` physically purge child element.
      */
-    purge(element: JSONElement): void;
+    purge(element: Primitive): void;
     /**
      * `deleteByKey` deletes the Element of the given key and removed time.
      */
-    deleteByKey(key: string, removedAt: TimeTicket): JSONElement | undefined;
+    deleteByKey(key: string, removedAt: TimeTicket): Primitive | undefined;
     /**
      * `has` returns whether the element exists of the given key or not.
      */
@@ -1660,7 +1727,7 @@ declare class RHTPQMap {
     /**
      * `get` returns the value of the given key.
      */
-    get(key: string): JSONElement | undefined;
+    get(key: string): Primitive | undefined;
     [Symbol.iterator](): IterableIterator<RHTPQMapNode>;
 }
 /**
@@ -1668,11 +1735,11 @@ declare class RHTPQMap {
  */
 declare class RHTPQMapNode {
     private strKey;
-    constructor(strKey: string, value: JSONElement);
+    constructor(strKey: string, value: Primitive);
     /**
      * `of` creates a instance of RHTPQMapNode.
      */
-    static of(strKey: string, value: JSONElement): RHTPQMapNode;
+    static of(strKey: string, value: Primitive): RHTPQMapNode;
     /**
      * `isRemoved` checks whether this value was removed.
      */
@@ -1692,12 +1759,16 @@ declare class RHTPQMapNode {
 export declare class RichText {
     private context?;
     private text?;
-    constructor(context?: ChangeContext, text?: RichTextInternal);
+    constructor(context?: ChangeContext, text?: CRDTRichText);
     /**
      * `initialize` initialize this rich text with context and internal text.
      * @internal
      */
-    initialize(context: ChangeContext, text: RichTextInternal): void;
+    initialize(context: ChangeContext, text: CRDTRichText): void;
+    /**
+     * `getID` returns the ID of this text.
+     */
+    getID(): TimeTicket;
     /**
      * `edit` edits this text with the given content.
      */
@@ -1727,95 +1798,6 @@ export declare class RichText {
      * `onChanges` registers a handler of onChanges event.
      */
     onChanges(handler: (changes: Array<TextChange>) => void): void;
-}
-/**
- *  `RichTextInternal` is an extended data type for the contents of a text editor.
- *
- * @internal
- */
-declare class RichTextInternal {
-    private onChangesHandler?;
-    private rgaTreeSplit;
-    private selectionMap;
-    private remoteChangeLock;
-    constructor(rgaTreeSplit: RGATreeSplit<RichTextValue>, createdAt: TimeTicket);
-    /**
-     * `create` a instance of RichText.
-     */
-    static create(rgaTreeSplit: RGATreeSplit<RichTextValue>, createdAt: TimeTicket): RichTextInternal;
-    /**
-     * `editInternal` edits the given range with the given content and attributes.
-     *
-     * @internal
-     */
-    editInternal(range: RGATreeSplitNodeRange, content: string, editedAt: TimeTicket, attributes?: Record<string, string>, latestCreatedAtMapByActor?: Map<string, TimeTicket>): Map<string, TimeTicket>;
-    /**
-     * `setStyleInternal` applies the style of the given range.
-     * 01. split nodes with from and to
-     * 02. style nodes between from and to
-     *
-     * @param range - range of RGATreeSplitNode
-     * @param attributes - style attributes
-     * @param editedAt - edited time
-     * @internal
-     */
-    setStyleInternal(range: RGATreeSplitNodeRange, attributes: Record<string, string>, editedAt: TimeTicket): void;
-    /**
-     * `selectInternal` stores that the given range has been selected.
-     *
-     * @internal
-     */
-    selectInternal(range: RGATreeSplitNodeRange, updatedAt: TimeTicket): void;
-    /**
-     * `hasRemoteChangeLock` checks whether remoteChangeLock has.
-     */
-    hasRemoteChangeLock(): boolean;
-    /**
-     * `onChanges` registers a handler of onChanges event.
-     */
-    onChanges(handler: (changes: Array<TextChange>) => void): void;
-    /**
-     * `createRange` returns pair of RGATreeSplitNodePos of the given integer offsets.
-     */
-    createRange(fromIdx: number, toIdx: number): RGATreeSplitNodeRange;
-    /**
-     * `toJSON` returns the JSON encoding of this rich text.
-     */
-    toJSON(): string;
-    /**
-     * `toSortedJSON` returns the sorted JSON encoding of this rich text.
-     */
-    toSortedJSON(): string;
-    /**
-     * `values` returns value array of this RichTextVal.
-     */
-    values(): Array<RichTextVal>;
-    /**
-     * `getRGATreeSplit` returns rgaTreeSplit.
-     *
-     * @internal
-     */
-    getRGATreeSplit(): RGATreeSplit<RichTextValue>;
-    /**
-     * `getAnnotatedString` returns a String containing the meta data of this value
-     * for debugging purpose.
-     */
-    getAnnotatedString(): string;
-    /**
-     * `getRemovedNodesLen` returns length of removed nodes
-     */
-    getRemovedNodesLen(): number;
-    /**
-     * `purgeTextNodesWithGarbage` physically purges nodes that have been removed.
-     *
-     * @internal
-     */
-    purgeTextNodesWithGarbage(ticket: TimeTicket): number;
-    /**
-     * `deepcopy` copies itself deeply.
-     */
-    deepcopy(): RichTextInternal;
-    private selectPriv;
 }
 declare interface RichTextVal {
     attributes: Record<string, string>;
@@ -2015,6 +1997,49 @@ declare interface SubscribeFn<T> {
     (observer: Observer<T>): Unsubscribe;
 }
 /**
+ * `Text` represents text element for representing contents of a text editor.
+ */
+declare class Text_2 {
+    private context?;
+    private text?;
+    constructor(context?: ChangeContext, text?: CRDTText);
+    /**
+     * `initialize` initialize this text with context and internal text.
+     * @internal
+     */
+    initialize(context: ChangeContext, text: CRDTText): void;
+    /**
+     * `getID` returns the ID of this text.
+     */
+    getID(): TimeTicket;
+    /**
+     * `edit` edits this text with the given content.
+     */
+    edit(fromIdx: number, toIdx: number, content: string): boolean;
+    /**
+     * `select` selects the given range.
+     */
+    select(fromIdx: number, toIdx: number): boolean;
+    /**
+     * `getAnnotatedString` returns a String containing the meta data of the node
+     * for debugging purpose.
+     */
+    getAnnotatedString(): string;
+    /**
+     * `toString` returns the string representation of this text.
+     */
+    toString(): string;
+    /**
+     * `createRange` returns pair of RGATreeSplitNodePos of the given integer offsets.
+     */
+    createRange(fromIdx: number, toIdx: number): RGATreeSplitNodeRange;
+    /**
+     * `onChanges` registers a handler of onChanges event.
+     */
+    onChanges(handler: (changes: Array<TextChange>) => void): void;
+}
+export { Text_2 as Text };
+/**
  * `TextChange` is the value passed as an argument to `Text.onChanges()`.
  * `Text.onChanges()` is called when the `Text` is modified.
  */
@@ -2035,13 +2060,6 @@ export declare enum TextChangeType {
     Content = "content",
     Selection = "selection",
     Style = "style"
-}
-/**
- * `TextElement` represents Text or RichText.
- */
-declare abstract class TextElement extends JSONElement {
-    abstract getRemovedNodesLen(): number;
-    abstract purgeTextNodesWithGarbage(ticket: TimeTicket): number;
 }
 /**
  * `TimeTicket` is a timestamp of the logical clock. Ticket is immutable.
@@ -2103,6 +2121,10 @@ export declare class TimeTicket {
  */
 export declare type Unsubscribe = () => void;
 /**
+ * `WrappedElement` is a wrapper of JSONElement that provides `getID()`.
+ */
+export declare type WrappedElement<T = unknown> = Primitive | JSONObject<T> | JSONArray<T> | Text_2 | RichText | Counter;
+/**
  * The top-level yorkie namespace with additional properties.
  *
  * In production, this will be called exactly once and the result
@@ -2114,8 +2136,8 @@ export declare type Unsubscribe = () => void;
  */
 declare const yorkie: {
     Client: typeof Client;
-    Document: typeof DocumentReplica;
-    Text: typeof PlainText;
+    Document: typeof Document_2;
+    Text: typeof Text_2;
     RichText: typeof RichText;
     Counter: typeof Counter;
 };

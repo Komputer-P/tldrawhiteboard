@@ -1,22 +1,47 @@
 import { TDBinding, TDShape, TDUser, TldrawApp } from "@tldraw/tldraw";
 import { useCallback, useEffect, useState } from "react";
+import { rotateShapes } from "../../../../packages/tldraw/src/state/commands";
 //import { Room } from "@y-presence/client";
-import {
-  //awareness,
-  client,
-  doc,
-  //provider,
-  //undoManager,
-  //yBindings,
-  //yShapes
-} from "./store";
+// import {
+//   awareness,
+//   client,
+//   doc,
+//   provider,
+//   undoManager,
+//   yBindings,
+//   yShapes
+// } from "./store";
 import type { TldrawPresence } from "./types";
+import * as yorkie from "./yorkie-js-sdk";
 
 //const room = new Room(awareness);
 
 export function useMultiplayerState(roomId: string) {
   const [app, setApp] = useState<TldrawApp>();
   const [loading, setLoading] = useState(true);
+
+  /** Doc Type */
+  type YorkieShape = {
+    id: string;
+    shape: TDShape;
+  }
+
+  type YorkieBinding = {
+    id: string;
+  }
+
+  type YorkieType = {
+    shapes: YorkieShape;
+    bindings: YorkieBinding
+  }
+  
+   /** Client **/
+   // Creating a client
+   const client = new yorkie.Client('http://localhost:8080');
+  
+  /** Document **/
+  // Creating a document
+  const doc = new yorkie.Document<YorkieType>('testt');
 
   const onMount = useCallback(
     (app: TldrawApp) => {
@@ -36,28 +61,24 @@ export function useMultiplayerState(roomId: string) {
       bindings: Record<string, TDBinding | undefined>
     ) => {
       //undoManager.stopCapturing();
-      console.log(Object.entries(shapes));
       doc.update((root) => {
         Object.entries(shapes).forEach(([id, shape]) => {
           if (!shape) {
              //yShapes.delete(id);
-             delete root.shapes[id];
            } else {
+            const id = shape.id;
              //yShapes.set(shape.id, shape);
-             root.shapes[id] = shape;
+             root.shapes = { id, shape };
            }
         });
+        debugger;
         Object.entries(bindings).forEach(([id, binding]) => {
           if (!binding) {
             //yBindings.delete(id);
-            delete root.bindings[id];
           } else {
             //yBindings.set(binding.id, binding);
-            root.bindings[id] = binding;
           }
         });
-
-        console.log(root.shapes);
       });
     },
     []
@@ -121,40 +142,45 @@ export function useMultiplayerState(roomId: string) {
     window.addEventListener("beforeunload", handleDisconnect);
 
     function handleChanges() {
-      const temp = Object.assign({}, doc.getRoot().shapes)
-      console.log(Object.assign({}, doc.getRoot().bindings))
-
-      app?.replacePageContent(
-        Object.fromEntries(Object.entries(doc.getRoot().shapes)),
-        Object.fromEntries(Object.entries(doc.getRoot().bindings)),
-        {}
-      );
+      // app?.replacePageContent(
+      //   Object.fromEntries(Object.entries(doc.getRoot().shapes)),
+      //   Object.fromEntries(Object.entries(doc.getRoot().bindings)),
+      //   {}
+      // );
     }
 
     async function setup() {
-      // active yorkie client
-      await client.activate();
+      try {
+        // active yorkie client
+        await client.activate();
 
-      // attach yorkie document to client
-      await client.attach(doc);
-      
-      doc.update((root) => {
-         if (!root['shapes']) {
-           root['shapes'] = [];
-         }
-         if(!root['bindings']) {
-           root['bindings'] = [];
-         }
-      }, 'create points if not exists');
+        // attach yorkie document to client
+        await client.attach(doc);
+        
+        doc.update((root) => {
+          if (!root['shapes']) {
+            root['shapes'] = <YorkieShape>{};
+          }
+          if(!root['bindings']) {
+            root['bindings'] = <YorkieBinding>{};
+          }
+          
+        }, 'create points if not exists');
+        
+        doc.subscribe((event) => {
+          handleChanges();
+        })
 
-      doc.subscribe((event) => {
+        //yShapes.observeDeep(handleChanges);
         handleChanges();
-      })
-      await client.sync();
+        await client.sync();
 
-      //yShapes.observeDeep(handleChanges);
-      handleChanges();
-      setLoading(false);
+        setLoading(false);
+
+      }
+      catch(e) {
+        console.error(e);
+      }
     }
 
     setup();

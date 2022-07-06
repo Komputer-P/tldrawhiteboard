@@ -28,11 +28,3 @@ export const roomID = `whiteboard-journey-with-y-tldraw-${VERSION}`;
 
 // // Create an undo manager for the shapes and binding maps
 // export const undoManager = new Y.UndoManager([yShapes, yBindings]);
-
-/** Client **/
-// Creating a client
-export const client = new yorkie.Client('http://localhost:8080');
-
-/** Document **/
-// Creating a document
-export const doc = new yorkie.DocumentReplica('doc-1');
