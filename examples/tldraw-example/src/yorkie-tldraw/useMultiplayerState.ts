@@ -12,36 +12,28 @@ import { rotateShapes } from "../../../../packages/tldraw/src/state/commands";
 //   yShapes
 // } from "./store";
 import type { TldrawPresence } from "./types";
-import * as yorkie from "./yorkie-js-sdk";
+import * as yorkie from "./yorkie-js-sdk"
 
 //const room = new Room(awareness);
 
+/** Client **/
+// Creating a client
+const client = new yorkie.Client('http://wbj-vpc-alb-private-152462774.ap-northeast-2.elb.amazonaws.com:8090');
+
+/** Document **/
+// Creating a document
+const doc = new yorkie.Document<YorkieType>('testt2');
+
+/** Doc Type */
+export type YorkieType = {
+  shapes: Record<string, TDShape>
+  bindings: Record<string, TDBinding>
+}
+
 export function useMultiplayerState(roomId: string) {
+
   const [app, setApp] = useState<TldrawApp>();
   const [loading, setLoading] = useState(true);
-
-  /** Doc Type */
-  type YorkieShape = {
-    id: string;
-    shape: TDShape;
-  }
-
-  type YorkieBinding = {
-    id: string;
-  }
-
-  type YorkieType = {
-    shapes: YorkieShape;
-    bindings: YorkieBinding
-  }
-  
-   /** Client **/
-   // Creating a client
-   const client = new yorkie.Client('http://localhost:8080');
-  
-  /** Document **/
-  // Creating a document
-  const doc = new yorkie.Document<YorkieType>('testt');
 
   const onMount = useCallback(
     (app: TldrawApp) => {
@@ -64,22 +56,19 @@ export function useMultiplayerState(roomId: string) {
       doc.update((root) => {
         Object.entries(shapes).forEach(([id, shape]) => {
           if (!shape) {
-             //yShapes.delete(id);
-           } else {
-            const id = shape.id;
-             //yShapes.set(shape.id, shape);
-             root.shapes = { id, shape };
-           }
-        });
-        debugger;
+            delete root.shapes[id];
+          } else {
+            root.shapes[id] = shape;
+          }
+        })
         Object.entries(bindings).forEach(([id, binding]) => {
           if (!binding) {
-            //yBindings.delete(id);
+            delete root.bindings[id];
           } else {
-            //yBindings.set(binding.id, binding);
+            root.bindings[id] = binding;
           }
-        });
-      });
+        })
+      })
     },
     []
   );
@@ -142,43 +131,48 @@ export function useMultiplayerState(roomId: string) {
     window.addEventListener("beforeunload", handleDisconnect);
 
     function handleChanges() {
-      // app?.replacePageContent(
-      //   Object.fromEntries(Object.entries(doc.getRoot().shapes)),
-      //   Object.fromEntries(Object.entries(doc.getRoot().bindings)),
-      //   {}
-      // );
+      let root = doc.getRoot();
+
+      let shapeRecord: Record<string, TDShape> = JSON.parse(JSON.parse(JSON.stringify(root.shapes)))
+      let bindingRecord: Record<string, TDBinding> = JSON.parse(JSON.parse(JSON.stringify(root.bindings)))
+
+      app?.replacePageContent(
+        shapeRecord,
+        bindingRecord,
+        {}
+      );
     }
 
     async function setup() {
+      console.log("setup");
       try {
         // active yorkie client
         await client.activate();
 
         // attach yorkie document to client
         await client.attach(doc);
-        
+
         doc.update((root) => {
-          if (!root['shapes']) {
-            root['shapes'] = <YorkieShape>{};
+          if (!root.shapes) {
+            root.shapes = {};
           }
-          if(!root['bindings']) {
-            root['bindings'] = <YorkieBinding>{};
+          if (!root.bindings) {
+            root.bindings = {};
           }
-          
         }, 'create points if not exists');
-        
+
         doc.subscribe((event) => {
           handleChanges();
         })
 
         //yShapes.observeDeep(handleChanges);
-        handleChanges();
-        await client.sync();
 
+        await client.sync();
+        handleChanges();
         setLoading(false);
 
       }
-      catch(e) {
+      catch (e) {
         console.error(e);
       }
     }

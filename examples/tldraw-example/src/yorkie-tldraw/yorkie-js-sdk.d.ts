@@ -652,7 +652,10 @@ declare class CRDTObject {
      * eslint-disable-next-line jsdoc/require-jsdoc
      * @internal
      */
-    [Symbol.iterator](): IterableIterator<[string, Primitive]>;
+    [Symbol.iterator](): IterableIterator<[
+        string,
+        Primitive
+    ]>;
 }
 /**
  *  `CRDTRichText` is a custom CRDT data type to represent the contents of text editors.
@@ -766,9 +769,13 @@ declare class CRDTRoot {
      */
     findByCreatedAt(createdAt: TimeTicket): Primitive | undefined;
     /**
+     * `createPathArray` creates path of the given element.
+     */
+    createPathArray(createdAt: TimeTicket): Array<string>;
+    /**
      * `createPath` creates path of the given element.
      */
-    createPath(createdAt: TimeTicket): string | undefined;
+    createPath(createdAt: TimeTicket): string;
     /**
      * `registerElement` registers the given element to hash table.
      */
@@ -859,6 +866,15 @@ declare class CRDTText {
      * `createRange` returns pair of RGATreeSplitNodePos of the given integer offsets.
      */
     createRange(fromIdx: number, toIdx: number): RGATreeSplitNodeRange;
+    /**
+     * `length` returns size of RGATreeList.
+     */
+    get length(): number;
+    /**
+     * `checkWeight` returns false when there is an incorrect weight node.
+     * for debugging purpose.
+     */
+    checkWeight(): boolean;
     /**
      * `toJSON` returns the JSON encoding of this text.
      */
@@ -1427,7 +1443,11 @@ declare class RGATreeSplit<T extends RGATreeSplitValue> {
      * @param latestCreatedAtMapByActor - latestCreatedAtMapByActor
      * @returns `[RGATreeSplitNodePos, Map<string, TimeTicket>, Array<Change>]`
      */
-    edit(range: RGATreeSplitNodeRange, editedAt: TimeTicket, value?: T, latestCreatedAtMapByActor?: Map<string, TimeTicket>): [RGATreeSplitNodePos, Map<string, TimeTicket>, Array<TextChange>];
+    edit(range: RGATreeSplitNodeRange, editedAt: TimeTicket, value?: T, latestCreatedAtMapByActor?: Map<string, TimeTicket>): [
+        RGATreeSplitNodePos,
+        Map<string, TimeTicket>,
+        Array<TextChange>
+    ];
     /**
      * `findNodePos` finds RGATreeSplitNodePos of given offset.
      */
@@ -1435,7 +1455,10 @@ declare class RGATreeSplit<T extends RGATreeSplitValue> {
     /**
      * `findIndexesFromRange` finds indexes based on range.
      */
-    findIndexesFromRange(range: RGATreeSplitNodeRange): [number, number];
+    findIndexesFromRange(range: RGATreeSplitNodeRange): [
+        number,
+        number
+    ];
     /**
      * `findIdxFromNodePos` finds index based on node position.
      */
@@ -1444,6 +1467,15 @@ declare class RGATreeSplit<T extends RGATreeSplitValue> {
      * `findNode` finds node of given id.
      */
     findNode(id: RGATreeSplitNodeID): RGATreeSplitNode<T>;
+    /**
+     * `length` returns size of RGATreeList.
+     */
+    get length(): number;
+    /**
+     * `checkWeight` returns false when there is an incorrect weight node.
+     * for debugging purpose.
+     */
+    checkWeight(): boolean;
     /**
      * `toJSON` returns the JSON encoding of this Array.
      */
@@ -1469,7 +1501,10 @@ declare class RGATreeSplit<T extends RGATreeSplitValue> {
     /**
      * `findNodeWithSplit` splits and return nodes of the given position.
      */
-    findNodeWithSplit(pos: RGATreeSplitNodePos, editedAt: TimeTicket): [RGATreeSplitNode<T>, RGATreeSplitNode<T>];
+    findNodeWithSplit(pos: RGATreeSplitNodePos, editedAt: TimeTicket): [
+        RGATreeSplitNode<T>,
+        RGATreeSplitNode<T>
+    ];
     private findFloorNodePreferToLeft;
     private findFloorNode;
     /**
@@ -1478,6 +1513,19 @@ declare class RGATreeSplit<T extends RGATreeSplitValue> {
     findBetween(fromNode: RGATreeSplitNode<T>, toNode: RGATreeSplitNode<T>): Array<RGATreeSplitNode<T>>;
     private splitNode;
     private deleteNodes;
+    private filterNodes;
+    /**
+     * `findEdgesOfCandidates` finds the edges outside `candidates`,
+     * (which has not already been deleted, or be undefined but not yet implemented)
+     * right edge is undefined means `candidates` contains the end of text.
+     */
+    private findEdgesOfCandidates;
+    private makeChanges;
+    /**
+     * `deleteIndexNodes` clears the index nodes of the given deletion boundaries.
+     * The boundaries mean the nodes that will not be deleted in the range.
+     */
+    private deleteIndexNodes;
     /**
      * `getRemovedNodesLen` returns size of removed nodes.
      */
@@ -1678,7 +1726,10 @@ declare class RGATreeSplitNodePos {
 /**
  * @internal
  */
-declare type RGATreeSplitNodeRange = [RGATreeSplitNodePos, RGATreeSplitNodePos];
+declare type RGATreeSplitNodeRange = [
+    RGATreeSplitNodePos,
+    RGATreeSplitNodePos
+];
 declare interface RGATreeSplitValue {
     length: number;
     substring(indexStart: number, indexEnd?: number): RGATreeSplitValue;
@@ -1751,7 +1802,7 @@ declare class RHTPQMapNode {
     /**
      * `remove` removes a value base on removing time.
      */
-    remove(removedAt: TimeTicket): void;
+    remove(removedAt: TimeTicket): boolean;
 }
 /**
  * `RichText` is an extended data type for the contents of a text editor.
@@ -1902,9 +1953,9 @@ declare abstract class SplayNode<V> {
      */
     getRight(): SplayNode<V> | undefined;
     /**
-     * `setRight` sets a right node.
+     * `getParent` returns parent of this node.
      */
-    setRight(right?: SplayNode<V>): void;
+    getParent(): SplayNode<V> | undefined;
     /**
      * `hasLeft` check if the left node exists
      */
@@ -1918,17 +1969,17 @@ declare abstract class SplayNode<V> {
      */
     hasParent(): boolean;
     /**
-     * `setParent` sets a parent node.
-     */
-    setParent(parent?: SplayNode<V>): void;
-    /**
      * `setLeft` sets a left node.
      */
     setLeft(left?: SplayNode<V>): void;
     /**
-     * `getParent` returns parent of this node.
+     * `setRight` sets a right node.
      */
-    getParent(): SplayNode<V> | undefined;
+    setRight(right?: SplayNode<V>): void;
+    /**
+     * `setParent` sets a parent node.
+     */
+    setParent(parent?: SplayNode<V>): void;
     /**
      * `unlink` unlink parent, right and left node.
      */
@@ -1942,7 +1993,7 @@ declare abstract class SplayNode<V> {
      */
     increaseWeight(weight: number): void;
     /**
-     * `initWeight` set initial weight of this node.
+     * `initWeight` sets initial weight of this node.
      */
     initWeight(): void;
 }
@@ -2025,6 +2076,15 @@ declare class Text_2 {
      * for debugging purpose.
      */
     getAnnotatedString(): string;
+    /**
+     * `length` returns size of RGATreeList.
+     */
+    get length(): number;
+    /**
+     * `checkWeight` returns false when there is an incorrect weight node.
+     * for debugging purpose.
+     */
+    checkWeight(): boolean;
     /**
      * `toString` returns the string representation of this text.
      */

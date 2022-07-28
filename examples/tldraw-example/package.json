@@ -22,6 +22,7 @@
     "@types/react-dom": "^17.0.11",
     "@types/react-router-dom": "^5.3.3",
     "@y-presence/client": "1.1.8",
+    "@tldraw/tldraw": "1.20.0",
     "concurrently": "^7.0.0",
     "create-serve": "^1.0.1",
     "esbuild": "^0.14.18",
