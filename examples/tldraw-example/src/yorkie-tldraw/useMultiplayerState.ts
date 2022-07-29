@@ -34,6 +34,7 @@ export function useMultiplayerState(roomId: string) {
 
   const [app, setApp] = useState<TldrawApp>();
   const [loading, setLoading] = useState(true);
+  const [setting, setSetting] = useState(false);
 
   const onMount = useCallback(
     (app: TldrawApp) => {
@@ -135,7 +136,8 @@ export function useMultiplayerState(roomId: string) {
 
       let shapeRecord: Record<string, TDShape> = JSON.parse(JSON.parse(JSON.stringify(root.shapes)))
       let bindingRecord: Record<string, TDBinding> = JSON.parse(JSON.parse(JSON.stringify(root.bindings)))
-
+      
+      console.log(shapeRecord);
       app?.replacePageContent(
         shapeRecord,
         bindingRecord,
@@ -177,7 +179,11 @@ export function useMultiplayerState(roomId: string) {
       }
     }
 
-    setup();
+    if(setting) {
+      setup();
+    }
+    setSetting(true);
+    
 
     return () => {
       window.removeEventListener("beforeunload", handleDisconnect);
