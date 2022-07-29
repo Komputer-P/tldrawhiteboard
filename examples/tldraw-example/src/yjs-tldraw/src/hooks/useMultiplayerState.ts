@@ -69,7 +69,7 @@ export function useMultiplayerState(roomId: string) {
    */
   const onChangePresence = useCallback((app: TldrawApp, user: TDUser) => {
     if (!app.room) return;
-    room.setPresence<TldrawPresence>({ id: app.room.userId, tdUser: user });
+    //room.setPresence<TldrawPresence>({ id: app.room.userId, tdUser: user });
   }, []);
 
   /**
@@ -91,6 +91,7 @@ export function useMultiplayerState(roomId: string) {
         }
       });
 
+      console.log(users);
       app.updateUsers(
         users
           .filter((user) => user.presence)

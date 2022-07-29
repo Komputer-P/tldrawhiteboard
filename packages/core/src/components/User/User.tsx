@@ -33,7 +33,7 @@ export function User({ user }: UserProps) {
         <path d="m19.751 24.4155-1.844.774-3.1-7.374 1.841-.775z" />
         <path d="m13 10.814v11.188l2.969-2.866.428-.139h4.768z" />
       </g>
-      <text fill={user.color} font-size="1em" x="" y="45">{user.name}</text>
+      <text fill={user.color} fontSize="1em" x="" y="45">{user.name}</text>
     </svg>
   )
 }

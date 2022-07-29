@@ -24,8 +24,8 @@ function Editor({ roomId }: { roomId: string }) {
 
 export default function YorkieTldraw(): JSX.Element {
   React.useEffect(() => {
-    //const userName = prompt("이름 입력해주세요") as string;
-    //localStorage.setItem("userName", userName);
+    const userName = prompt("이름 입력해주세요") as string;
+    localStorage.setItem("userName", userName);
   }, []);
   
   return (

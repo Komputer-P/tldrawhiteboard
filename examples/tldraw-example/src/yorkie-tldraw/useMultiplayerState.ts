@@ -1,6 +1,6 @@
-import { TDBinding, TDShape, TDUser, TldrawApp } from "@tldraw/tldraw";
-import { useCallback, useEffect, useState } from "react";
-import { rotateShapes } from "../../../../packages/tldraw/src/state/commands";
+import { TDBinding, TDShape, TDUser, TldrawApp } from '@tldraw/tldraw'
+import { useCallback, useEffect, useState } from 'react'
+import { rotateShapes } from '../../../../packages/tldraw/src/state/commands'
 //import { Room } from "@y-presence/client";
 // import {
 //   awareness,
@@ -11,41 +11,41 @@ import { rotateShapes } from "../../../../packages/tldraw/src/state/commands";
 //   yBindings,
 //   yShapes
 // } from "./store";
-import type { TldrawPresence } from "./types";
-import * as yorkie from "./yorkie-js-sdk"
+import type { TldrawPresence } from './types'
+import * as yorkie from './yorkie-js-sdk'
 
 //const room = new Room(awareness);
 
 /** Client **/
 // Creating a client
-const client = new yorkie.Client('http://wbj-vpc-alb-private-152462774.ap-northeast-2.elb.amazonaws.com:8090');
+let client: yorkie.Client<yorkie.Indexable>
 
 /** Document **/
 // Creating a document
-const doc = new yorkie.Document<YorkieType>('testt2');
+let doc: yorkie.Document<yorkie.Indexable>
 
 /** Doc Type */
 export type YorkieType = {
   shapes: Record<string, TDShape>
   bindings: Record<string, TDBinding>
+  users: Record<string, TDUser>
 }
 
 export function useMultiplayerState(roomId: string) {
-
-  const [app, setApp] = useState<TldrawApp>();
-  const [loading, setLoading] = useState(true);
-  const [setting, setSetting] = useState(false);
+  const [app, setApp] = useState<TldrawApp>()
+  const [loading, setLoading] = useState(true)
+  const [setting, setSetting] = useState(false)
 
   const onMount = useCallback(
     (app: TldrawApp) => {
-      const userName = localStorage.getItem("userName")
+      const userName = localStorage.getItem('userName')
 
-      app.loadRoom(roomId, userName === null ? "익명" : userName);
-      app.pause();
-      setApp(app);
+      app.loadRoom(roomId, userName === null ? '익명' : userName)
+      app.pause()
+      setApp(app)
     },
     [roomId]
-  );
+  )
 
   const onChangePage = useCallback(
     (
@@ -57,38 +57,42 @@ export function useMultiplayerState(roomId: string) {
       doc.update((root) => {
         Object.entries(shapes).forEach(([id, shape]) => {
           if (!shape) {
-            delete root.shapes[id];
+            delete root.shapes[id]
           } else {
-            root.shapes[id] = shape;
+            root.shapes[id] = shape
           }
         })
         Object.entries(bindings).forEach(([id, binding]) => {
           if (!binding) {
-            delete root.bindings[id];
+            delete root.bindings[id]
           } else {
-            root.bindings[id] = binding;
+            root.bindings[id] = binding
           }
         })
       })
     },
     []
-  );
+  )
 
   const onUndo = useCallback(() => {
     //undoManager.undo();
-  }, []);
+  }, [])
 
   const onRedo = useCallback(() => {
     //undoManager.redo();
-  }, []);
+  }, [])
 
   /**
    * Callback to update user's (self) presence
    */
   const onChangePresence = useCallback((app: TldrawApp, user: TDUser) => {
-    if (!app.room) return;
+    if (!app.room) return
+
+    // doc.update((root) => {
+    //   root.users[app!.room!.userId] = user      
+    // })
     //room.setPresence<TldrawPresence>({ id: app.room.userId, tdUser: user });
-  }, []);
+  }, [])
 
   /**
    * Update app users whenever there is a change in the room users
@@ -123,73 +127,118 @@ export function useMultiplayerState(roomId: string) {
   // }, [app]);
 
   useEffect(() => {
-    if (!app) return;
+    if (!app) return
 
     function handleDisconnect() {
       //provider.disconnect();
     }
 
-    window.addEventListener("beforeunload", handleDisconnect);
+    window.addEventListener('beforeunload', handleDisconnect)
 
     function handleChanges() {
-      let root = doc.getRoot();
+      let root = doc.getRoot()
 
       let shapeRecord: Record<string, TDShape> = JSON.parse(JSON.parse(JSON.stringify(root.shapes)))
       let bindingRecord: Record<string, TDBinding> = JSON.parse(JSON.parse(JSON.stringify(root.bindings)))
-      
-      console.log(shapeRecord);
-      app?.replacePageContent(
-        shapeRecord,
-        bindingRecord,
-        {}
-      );
+      let usersRecord: Record<string, TDUser> = JSON.parse(JSON.parse(JSON.stringify(root.users)))
+
+      let users: TDUser[] = []
+      for (const [id, user] of Object.entries(usersRecord)) {
+        users.push(user)
+      }
+
+      app?.replacePageContent(shapeRecord, bindingRecord, {})
+
+      const ids = users
+        .map((user) => user.id);
+
+      Object.values(app!.room!.users).forEach((user) => {
+        if (user && !ids.includes(user.id) && user.id !== app!.room?.userId) {
+          console.log(user);
+
+          app!.removeUser(user.id);
+        }
+      });
+      app?.updateUsers(users)
     }
 
     async function setup() {
-      console.log("setup");
       try {
         // active yorkie client
-        await client.activate();
+        // with presence
+        // const options = {
+        //   presence: {
+        //     user: app?.currentUser,
+        //   },
+        // };
+        client = new yorkie.Client(
+          'http://wbj-vpc-alb-private-152462774.ap-northeast-2.elb.amazonaws.com:8090'
+        )
+        await client.activate()
+
+        // client.subscribe((event) => {
+        //   if (event.type === 'peers-changed') {
+        //     const peers = event.value[doc.getKey()];
+
+        //     let users: TDUser[] = [];
+        //     for (const [clientID, presence] of Object.entries(peers)) {
+        //      users.push(presence.user)
+        //     }
+
+        //     const ids = users.map(user => user.id)
+        //     Object.values(app!.room!.users).forEach((user) => {
+        //       if (user && !ids.includes(user.id) && user.id !== app!.room?.userId) {
+        //         app?.removeUser(user.id);
+        //       }
+        //     });
+
+        //     console.log(users);
+        //     app?.updateUsers(
+        //       users
+        //     )
+        //   }
+        // })
 
         // attach yorkie document to client
-        await client.attach(doc);
+        doc = new yorkie.Document<YorkieType>('testt2')
+        await client.attach(doc)
 
         doc.update((root) => {
           if (!root.shapes) {
-            root.shapes = {};
+            root.shapes = {}
           }
           if (!root.bindings) {
-            root.bindings = {};
+            root.bindings = {}
           }
-        }, 'create points if not exists');
+          if (!root.users) {
+            root.users = {}
+          }
+        }, 'create points if not exists')
 
         doc.subscribe((event) => {
-          handleChanges();
+          handleChanges()
         })
 
         //yShapes.observeDeep(handleChanges);
 
-        await client.sync();
-        handleChanges();
-        setLoading(false);
-
-      }
-      catch (e) {
-        console.error(e);
+        await client.sync()
+        handleChanges()
+        setLoading(false)
+      } catch (e) {
+        console.error(e)
       }
     }
 
-    if(setting) {
-      setup();
+    if (setting) {
+      setup()
     }
-    setSetting(true);
-    
+    setSetting(true)
 
     return () => {
-      window.removeEventListener("beforeunload", handleDisconnect);
+      window.removeEventListener('beforeunload', handleDisconnect)
       //yShapes.unobserveDeep(handleChanges);
-    };
-  }, [app]);
+    }
+  }, [app])
 
   return {
     onMount,
@@ -197,6 +246,6 @@ export function useMultiplayerState(roomId: string) {
     onUndo,
     onRedo,
     loading,
-    onChangePresence
-  };
+    onChangePresence,
+  }
 }
