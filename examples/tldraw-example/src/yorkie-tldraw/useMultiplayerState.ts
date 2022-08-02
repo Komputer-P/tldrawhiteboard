@@ -1,4 +1,5 @@
 import { TDBinding, TDShape, TDUser, TldrawApp } from '@tldraw/tldraw'
+import { time } from 'console'
 import { useCallback, useEffect, useState } from 'react'
 import { rotateShapes } from '../../../../packages/tldraw/src/state/commands'
 //import { Room } from "@y-presence/client";
@@ -28,7 +29,6 @@ let doc: yorkie.Document<yorkie.Indexable>
 export type YorkieType = {
   shapes: Record<string, TDShape>
   bindings: Record<string, TDBinding>
-  users: Record<string, TDUser>
 }
 
 export function useMultiplayerState(roomId: string) {
@@ -86,11 +86,15 @@ export function useMultiplayerState(roomId: string) {
    * Callback to update user's (self) presence
    */
   const onChangePresence = useCallback((app: TldrawApp, user: TDUser) => {
-    if (!app.room) return
+    if (!app.room || !client.isActive()) return
 
-    // doc.update((root) => {
-    //   root.users[app!.room!.userId] = user      
-    // })
+    // need to limit rate of callback invocation
+    // setting rate limit by prime numbers
+    const time = new Date().getTime()
+    if(time % 19 !== 0) return
+    
+    client.updatePresence("user", user);
+    
     //room.setPresence<TldrawPresence>({ id: app.room.userId, tdUser: user });
   }, [])
 
@@ -140,64 +144,43 @@ export function useMultiplayerState(roomId: string) {
 
       let shapeRecord: Record<string, TDShape> = JSON.parse(JSON.parse(JSON.stringify(root.shapes)))
       let bindingRecord: Record<string, TDBinding> = JSON.parse(JSON.parse(JSON.stringify(root.bindings)))
-      let usersRecord: Record<string, TDUser> = JSON.parse(JSON.parse(JSON.stringify(root.users)))
-
-      let users: TDUser[] = []
-      for (const [id, user] of Object.entries(usersRecord)) {
-        users.push(user)
-      }
-
       app?.replacePageContent(shapeRecord, bindingRecord, {})
-
-      const ids = users
-        .map((user) => user.id);
-
-      Object.values(app!.room!.users).forEach((user) => {
-        if (user && !ids.includes(user.id) && user.id !== app!.room?.userId) {
-          console.log(user);
-
-          app!.removeUser(user.id);
-        }
-      });
-      app?.updateUsers(users)
     }
 
     async function setup() {
       try {
         // active yorkie client
         // with presence
-        // const options = {
-        //   presence: {
-        //     user: app?.currentUser,
-        //   },
-        // };
+        const options = {
+          presence: {
+            user: app?.currentUser,
+          },
+        };
         client = new yorkie.Client(
-          'http://wbj-vpc-alb-private-152462774.ap-northeast-2.elb.amazonaws.com:8090'
+          'http://wbj-vpc-alb-private-152462774.ap-northeast-2.elb.amazonaws.com:8090', options
         )
         await client.activate()
 
-        // client.subscribe((event) => {
-        //   if (event.type === 'peers-changed') {
-        //     const peers = event.value[doc.getKey()];
+        client.subscribe((event) => {
+          if (event.type === 'peers-changed') {
+            const peers = event.value[doc.getKey()];
 
-        //     let users: TDUser[] = [];
-        //     for (const [clientID, presence] of Object.entries(peers)) {
-        //      users.push(presence.user)
-        //     }
-
-        //     const ids = users.map(user => user.id)
-        //     Object.values(app!.room!.users).forEach((user) => {
-        //       if (user && !ids.includes(user.id) && user.id !== app!.room?.userId) {
-        //         app?.removeUser(user.id);
-        //       }
-        //     });
-
-        //     console.log(users);
-        //     app?.updateUsers(
-        //       users
-        //     )
-        //   }
-        // })
+            let users: TDUser[] = [];
+            for (const [clientID, presence] of Object.entries(peers)) {
+             users.push(presence.user)
+            }
+            
+            // remove all users
+            Object.values(app!.room!.users).forEach((user) => {
+              app?.removeUser(user.id);
+            });
+            
+            // update users
+            app?.updateUsers(
+              users
+            )
+          }
+        })
 
         // attach yorkie document to client
         doc = new yorkie.Document<YorkieType>('testt2')
@@ -209,9 +192,6 @@ export function useMultiplayerState(roomId: string) {
           }
           if (!root.bindings) {
             root.bindings = {}
-          }
-          if (!root.users) {
-            root.users = {}
           }
         }, 'create points if not exists')
 

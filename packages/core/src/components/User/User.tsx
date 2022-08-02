@@ -18,6 +18,8 @@ export function User({ user }: UserProps) {
       className="tl-absolute tl-user tl-counter-scaled"
       xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 50 50"
+      width="1500"
+      height="1500"
       fill="none"
       fillRule="evenodd"
     >
